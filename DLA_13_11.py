@@ -23,9 +23,10 @@ class Point(object):
 
 rand_final=[]
 random_list =[]
-max=100
+max=20
 
-pore_procent = 50
+
+pore_procent = 1.3
 fore_pore_volume = pore_procent/100*max*max
 pore_volume=divmod(fore_pore_volume,1)[0]
 
@@ -181,8 +182,10 @@ len_point = 0
 while len(Point._registry[1]['coords'])<pore_volume:
     check_neighbours()
     if len(Point._registry[1]['coords'])>len_point:
+        print_str(Point._registry, 'Point._registry')
         len_point=len(Point._registry[1]['coords'])
         print_str(len_point,'num points')
+        print_str(len_point/max/max*100,' %')
     moving()
 print(field_test,'field_test - after') 
 end_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
