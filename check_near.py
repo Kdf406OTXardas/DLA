@@ -7,7 +7,7 @@ from settings import *
 
 
 # Эта строчка нигде не используется
-target_pore_cells = TARGET_POROSITY / 100 * FIELD_SIZE * FIELD_SIZE
+# target_pore_cells = TARGET_POROSITY / 100 * FIELD_SIZE * FIELD_SIZE
 # Эта строчка нигде не используется. Зачем она?
 # pore_volume = divmod(target_pore_cells, 1)[0]
 # Зачем здесь деление с остатком? Достаточно обычного же
@@ -16,7 +16,7 @@ target_pore_cells = TARGET_POROSITY / 100 * FIELD_SIZE * FIELD_SIZE
 
 
 rand_final = []
-random_list = []
+
 random_list_land = np.array((None, None))
 
 check_list = []
@@ -44,7 +44,7 @@ def print_str(a, b):
 
 
 # Зачем так сложно? Почему просто нельзя рандомно расположить сразу на массиве?
-
+# Уйти от глобальной переменной
 def land_list():
     global random_list_land
     for x in range(FIELD_SIZE):
@@ -67,8 +67,10 @@ def new_point(field, points_set):
     x, y = rnd.choice(points_set)
     field[x, y] = 2
 
+# Эта функция не используется
 
-def rnd_list():
+
+def rnd_list(random_list):
     for x_rand in range(FIELD_SIZE):
         for y_rand in range(FIELD_SIZE):
             random_list.append([x_rand+1, y_rand+1])
@@ -97,17 +99,18 @@ def new_check_list(list_for_check_calculate):
 def check_neighbours(field):
     global check_list
     global check_field
+    global random_list_land
 
     for i in check_list:
-        check_field = np.roll(field,(i[0],i[1]),axis = (0,1))
+        check_field = np.roll(field, (i[0], i[1]), axis=(0, 1))
         check_field=field*check_field
-        x ,y = np.where(check_field==2)
+        x, y = np.where(check_field == 2)
         # print_str(check_field, 'check_field')
         # print_str(field_test, 'field_test')
-        field[x-i[0],y-i[1]]=1
-        if x.size>0:
-            random_list_vstack_crds([x-i[0],y-i[1]])
-            new_point()
+        field[x-i[0], y-i[1]] = 1
+        if x.size > 0:
+            random_list_vstack_crds([x-i[0], y-i[1]])
+            new_point(field, random_list_land)
 
 # Чтобы код не представлял из себя мешанину и было легче ориентироваться, делают точку входа в виде функции main
 # Сюда помещают весь исполняемый код
