@@ -1,4 +1,5 @@
-import numpy
+import numpy as cupy
+#import cupy as cupy
 import random as rnd
 from time import gmtime, strftime
 
@@ -23,15 +24,10 @@ class Point(object):
 
 rand_final=[]
 random_list =[]
-max=20
+max=100
+field_test = cupy.zeros((max+2,max+2))
+list_for_check_calculate = cupy.array([-1, 0, 1])
 
-
-pore_procent = 1.3
-fore_pore_volume = pore_procent/100*max*max
-pore_volume=divmod(fore_pore_volume,1)[0]
-
-field_test = numpy.zeros((max+2,max+2))
-list_for_check_calculate = numpy.array([-1, 0, 1])
 
 
 def rnd_list():
@@ -42,6 +38,8 @@ def rnd_list():
     
 rnd_list()
 
+
+
 def check_list_new():
     global check_list
     check_list = []
@@ -49,25 +47,25 @@ def check_list_new():
         for y in list_for_check_calculate:
             check_list.append([x,y])
     check_list.remove([0,0])     
-    check_list=numpy.array(check_list)
-    # print_str(check_list, 'check_list')
+    check_list=cupy.array(check_list)
+    print_str(check_list, 'check_list')
 
 check_list_new()
+
 
 def new_point():
     global point_1
     point_1=Point(1 ,[[divmod(max,2)[0]+1,divmod(max,2)[0]+1]])
 new_point()
 
-
 def new_particle_2():
     new_particle = rnd.choice(random_list)
     rand_final.append(new_particle)
     random_list.remove(new_particle)
     global point_2
-    # point_2=Point(2 ,[[1,1]])
-    point_2=Point(2 ,[[new_particle[0],new_particle[1]]])
-    # print(Point._registry)
+    point_2=Point(2 ,[[1,1]])
+    #point_2=Point(2 ,[[new_particle[0],new_particle[1]]])
+    print(Point._registry)
     
 new_particle_2()
 
@@ -88,11 +86,10 @@ coords_to_field()
 
 
 def check_neighbours():    
-    # print_str(Point._registry,'до проверки')
+    print_str(Point._registry,'до проверки')
     list_for_delete=[]
             #========= Проверка соседей (начало) =========
-    if len(Point._registry)==1:
-        new_particle_2()        
+            
     for coord_check in check_list:
         x=coord_check[0]
         y=coord_check[1]  
@@ -100,41 +97,40 @@ def check_neighbours():
         y_2 = Point._registry[2]['coords'][0][1]
         # print(Point._registry)
         if (field_test[x_2+x][y_2+y]==1)==True:
-            # print('test finished')
-            point_1.add_coords(Point._registry[2]['coords'][0])
+            print('test finished')
+            point_1.add_coords(point_2.coords[0])
             # print('add_coords')
+                
 
             field_test[x_2][y_2]=1
-            point_2.remove_point(2)
-            break                  
-    # print_str(Point._registry,'после удаления')   
+            point_2.remove_point(2)                    
+    print_str(Point._registry,'после удаления')   
 
-# check_neighbours()
-    
+check_neighbours()
     
 
 def moving():  
     # print(field_test)
-    # print_str(Point._registry,'registry_before')
+    print_str(Point._registry,'registry_before')
     if len(Point._registry)>1:
-        x_move = Point._registry[2]['coords'][0][0]
-        y_move = Point._registry[2]['coords'][0][1]
-        coord_moving = Point._registry[2]['coords'][0]
+        x_move = point_2.coords[0][0]
+        y_move = point_2.coords[0][1]
+        coord_moving = point_2.coords[0]
                     
         crit_mix_max=0
         stop_signal=0
         check_list_moving = check_list[:]
                 
-        # print('test_1')
+        print('test_1')
         while (crit_mix_max==0 and stop_signal==0)==True:
             
             # print(step_while,'step_while')
             step_rnd = rnd.choices(check_list_moving)
-            for_sum_coord=numpy.array(step_rnd[0])
+            for_sum_coord=cupy.array(step_rnd[0])
             # print_str(for_sum_coord,' for_sum_coord')
             not_use=1
                             # check_list_moving.remove(step_rnd[0])
-            new_coord=numpy.array(coord_moving)
+            new_coord=cupy.array(coord_moving)
             # print_str(new_coord,' new_coord')
                         
             if step_rnd==[]:
@@ -143,9 +139,9 @@ def moving():
                 break
                             
             refresh_value=[]
+                        # print_str(i,' i')
             t=new_coord+for_sum_coord
-            # print_str(t,' t')
-            # print_str(max,' max')
+                            # print_str(t,' t')
             refresh_value.append(t.tolist())
             # print_str(refresh_value,' refresh_value')
             if ((t[0]<1 or t[1]<1
@@ -159,37 +155,33 @@ def moving():
                                 
                 # field_test[refresh_value[0][0]][refresh_value[0][1]]=2
                                 
-                # print(str(refresh_value), ' refresh_value')
+                                # print(str(refresh_value), ' refresh_value')
                 crit_mix_max=1
                                 
                 point_2._registry[2] = {'coords': refresh_value}
-                # print_str(Point._registry,'промежуточно')
-                # print("""================================
-                #       """)
+                                # print_str(v['coords'],'changed_point')
                 coords_to_field()
-                # print('finish')
+                print('finish')
                 break
-            # else:
-                
-                # print('расчет окончен')
+            else:
+                print('расчет окончен')
                 # field_test[refresh_value[0][0]][refresh_value[0][1]]=1
-    # else:      
+    else:    
+        print('==1')    
                 
                 
+moving()
+print_str(Point._registry,'registry_after')
+print(field_test,'field_test')  
+
+# print(field_test)
+# print_str(len(check_list),'- осталось свободных вариантов')
+
+
 start_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
 print(field_test,'field_test - before')  
-len_point = 0
-while len(Point._registry[1]['coords'])<pore_volume:
+while len(Point._registry)>1:
     check_neighbours()
-    if len(Point._registry[1]['coords'])>len_point:
-        print_str(Point._registry, 'Point._registry')
-        len_point=len(Point._registry[1]['coords'])
-        print_str(len_point,'num points')
-        print_str(len_point/max/max*100,' %')
     moving()
-print(field_test,'field_test - after') 
-end_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
-
-print_str(start_time,'start')
-print_str(end_time,'end')
-print_str(end_time-start_time,'difference')
+print(field_test,'field_test - after')  
+end_time = strftime("%Y-%m-%d %H:%M:%S", gmtime())   
