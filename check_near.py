@@ -4,21 +4,24 @@ import random as rnd
 import time
 from time import gmtime, strftime
 
-max = 5
-pore_procent = 50
-fore_pore_volume = pore_procent / 100 * max * max
-pore_volume = divmod(fore_pore_volume, 1)[0]
-first_coords = divmod(max, 2)[0] + 1, divmod(max, 2)[0] + 1
-print(first_coords)
+FIELD_SIZE = 5
+TARGET_POROSITY = 50
+
+# Эта строчка нигде не используется
+target_pore_cells = TARGET_POROSITY / 100 * FIELD_SIZE * FIELD_SIZE
+# Эта строчка нигде не используется. Зачем она?
+# pore_volume = divmod(target_pore_cells, 1)[0]
+# Зачем здесь деление с остатком? Достаточно обычного же
+# first_coords = divmod(FIELD_SIZE, 2)[0] + 1, divmod(FIELD_SIZE, 2)[0] + 1
+
 list_for_check_calculate = np.array([-1, 0, 1])
 
 rand_final = []
 random_list = []
 random_list_land = np.array((None, None))
-field_test = np.zeros((max + 2, max + 2))
 
 check_list = []
-list_for_check_calculate = []
+
 check_field = []
 check_list_there = []
 
@@ -27,34 +30,34 @@ def print_str(a, b):
     print(str(a), b)
 
 
+# Зачем так сложно? Почему просто нельзя рандомно расположить сразу на массиве?
+
 def land_list():
     global random_list_land
-    for x in range(max):
-        for y in range(max):
-            random_list_land = np.vstack([random_list_land,np.array([x+1,y+1])])
+    for x in range(FIELD_SIZE):
+        for y in range(FIELD_SIZE):
+            random_list_land = np.vstack([random_list_land, np.array([x+1, y+1])])
 
 
 def random_list_vstack_crds(for_del):
     global random_list_land
     random_list_land = np.delete(random_list_land, for_del, axis=0)
 
-
-def zero_point():
-    global field_test
-    global first_coords
-    field_test[first_coords]=1
+# Такие вещи лучше не глобально ставить, а давать аргументами. Это делает функцию более обобщенной
 
 
-def new_point():
-    global field_test
-    global random_list_land
-    x, y = rnd.choice(random_list_land)
-    field_test[x, y] = 2
+def place_cluster(field, place_coords):
+    field[place_coords] = 1
+
+
+def new_point(field, points_set):
+    x, y = rnd.choice(points_set)
+    field[x, y] = 2
 
 
 def rnd_list():
-    for x_rand in range(max):
-        for y_rand in range(max):
+    for x_rand in range(FIELD_SIZE):
+        for y_rand in range(FIELD_SIZE):
             random_list.append([x_rand+1, y_rand+1])
 
 
@@ -79,17 +82,17 @@ def new_check_list():
 # существует вариант, что новая частица попадет под проверку
 
 
-def check_neighbours():
+def check_neighbours(field):
     global check_list
     global check_field
-    global field_test    
+
     for i in check_list:
-        check_field = np.roll(field_test,(i[0],i[1]),axis = (0,1))
-        check_field=field_test*check_field
+        check_field = np.roll(field,(i[0],i[1]),axis = (0,1))
+        check_field=field*check_field
         x ,y = np.where(check_field==2)
         # print_str(check_field, 'check_field')
         # print_str(field_test, 'field_test')
-        field_test[x-i[0],y-i[1]]=1
+        field[x-i[0],y-i[1]]=1
         if x.size>0:
             random_list_vstack_crds([x-i[0],y-i[1]])
             new_point()
@@ -101,21 +104,26 @@ def check_neighbours():
 def main():
     global list_for_check_calculate
     global check_list_there
+    global random_list_land
 
-
-    print(field_test)
 
     land_list()
-    random_list_vstack_crds(first_coords)
-    zero_point()
-    new_point()
-    # random_list_vstack_np()
+    #print(random_list_land)
+
+    field_test = np.zeros((FIELD_SIZE + 2, FIELD_SIZE + 2))
+    print(field_test)
+    initial_cluster_coords = FIELD_SIZE // 2 + 1, FIELD_SIZE // 2 + 1
+    random_list_vstack_crds(initial_cluster_coords)
+    place_cluster(field_test, initial_cluster_coords)
+
+    new_point(field_test, random_list_land)
+    #random_list_vstack_np()
     print(field_test)
     # проверка соседей
     print_str(field_test, 'field_test before check')
 
     new_check_list()
-    check_neighbours()
+    check_neighbours(field_test)
     print_str(field_test, 'field_test after check')
 
     x, y = np.where(field_test == 2)
@@ -127,7 +135,7 @@ def main():
             a = rnd.choice(check_list_there)
             print(a)
             print(x[-i])
-            if x[-i] + a[0] > 0 & x[-i] + a[0] < max + 1 & y[-i] + a[1] > 0 & y[-i] + a[1] < max + 1:
+            if x[-i] + a[0] > 0 & x[-i] + a[0] < FIELD_SIZE + 1 & y[-i] + a[1] > 0 & y[-i] + a[1] < FIELD_SIZE + 1:
                 criteria_sum = 0
                 break
             else:
