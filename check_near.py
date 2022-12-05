@@ -3,9 +3,8 @@ import numpy as np
 import random as rnd
 import time
 from time import gmtime, strftime
+from settings import *
 
-FIELD_SIZE = 5
-TARGET_POROSITY = 50
 
 # Эта строчка нигде не используется
 target_pore_cells = TARGET_POROSITY / 100 * FIELD_SIZE * FIELD_SIZE
@@ -14,7 +13,7 @@ target_pore_cells = TARGET_POROSITY / 100 * FIELD_SIZE * FIELD_SIZE
 # Зачем здесь деление с остатком? Достаточно обычного же
 # first_coords = divmod(FIELD_SIZE, 2)[0] + 1, divmod(FIELD_SIZE, 2)[0] + 1
 
-list_for_check_calculate = np.array([-1, 0, 1])
+
 
 rand_final = []
 random_list = []
@@ -25,6 +24,20 @@ check_list = []
 check_field = []
 check_list_there = []
 
+
+def render_field(field):
+    dim = field.shape
+    for y in range(dim[1]):
+        row = ''
+        for x in range(dim [0]):
+            if field[x, y] == 0:
+                row += '.'
+            elif field[x, y] == 1:
+                row += 'K'
+            elif field[x, y] == 2:
+                row += 'O'
+        print(row)
+    print()
 
 def print_str(a, b):
     print(str(a), b)
@@ -61,9 +74,8 @@ def rnd_list():
             random_list.append([x_rand+1, y_rand+1])
 
 
-def new_check_list():
+def new_check_list(list_for_check_calculate):
     global check_list
-    global list_for_check_calculate
     check_list = np.array([0, 0])
     for y in list_for_check_calculate:
         for z in list_for_check_calculate:
@@ -109,32 +121,39 @@ def main():
 
     land_list()
     #print(random_list_land)
-
+    list_for_check_calculate = np.array([-1, 0, 1])
     field_test = np.zeros((FIELD_SIZE + 2, FIELD_SIZE + 2))
-    print(field_test)
+    render_field(field_test)
+    #print(field_test)
     initial_cluster_coords = FIELD_SIZE // 2 + 1, FIELD_SIZE // 2 + 1
     random_list_vstack_crds(initial_cluster_coords)
     place_cluster(field_test, initial_cluster_coords)
 
     new_point(field_test, random_list_land)
+    render_field(field_test)
     #random_list_vstack_np()
-    print(field_test)
+    #print(field_test)
     # проверка соседей
-    print_str(field_test, 'field_test before check')
+    #print_str(field_test, 'field_test before check')
 
-    new_check_list()
+    print('Поле до')
+    render_field(field_test)
+
+    new_check_list(list_for_check_calculate)
     check_neighbours(field_test)
-    print_str(field_test, 'field_test after check')
+    #print_str(field_test, 'field_test after check')
+    print('Поле после проверки')
+    render_field(field_test)
 
     x, y = np.where(field_test == 2)
-    print(x, y)
+    #print(x, y)
     for i in range(len(x)):
         criteria_sum = 1
         check_list_there = check_list
         while criteria_sum == 1:
             a = rnd.choice(check_list_there)
-            print(a)
-            print(x[-i])
+            #print(a)
+            #print(x[-i])
             if x[-i] + a[0] > 0 & x[-i] + a[0] < FIELD_SIZE + 1 & y[-i] + a[1] > 0 & y[-i] + a[1] < FIELD_SIZE + 1:
                 criteria_sum = 0
                 break
@@ -147,7 +166,10 @@ def main():
         field_test[x[-i], y[-i]] = 0
         field_test[x[-i] + a[0], y[-i] + a[1]] = 2
 
-    print_str(field_test, 'field_test after move')
+    #print_str(field_test, 'field_test after move')
+    print('Поле после движения')
+
+    render_field(field_test)
 
 
 main()
