@@ -1,4 +1,5 @@
 import numpy as cupy
+#import cupy as cupy
 import random as rnd
 from time import gmtime, strftime
 
