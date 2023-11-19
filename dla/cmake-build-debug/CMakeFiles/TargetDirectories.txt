@@ -1,0 +1,3 @@
+/home/natkachov/CLionProjects/dla/cmake-build-debug/CMakeFiles/dla.dir
+/home/natkachov/CLionProjects/dla/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/natkachov/CLionProjects/dla/cmake-build-debug/CMakeFiles/rebuild_cache.dir
