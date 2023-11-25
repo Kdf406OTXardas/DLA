@@ -3,7 +3,7 @@ from pycuda import driver, compiler, gpuarray, tools
 import pycuda.autoinit
 
 SPACE_VALUE = 3
-EDGE_FIELD = 10
+EDGE_FIELD = 20
 END_POROSITY = 10
 FOR_NOW_POROSITY = int((EDGE_FIELD - 2) * (EDGE_FIELD - 2) * (EDGE_FIELD - 2))
 MAX_COORD = EDGE_FIELD - 2
@@ -12,6 +12,7 @@ middle_index = int(EDGE_FIELD / 2 + EDGE_FIELD * (EDGE_FIELD / 2 + EDGE_FIELD * 
 print(f"middle_index {middle_index}")
 kernel_code_template = """ 
 
+#include <cuda_runtime.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -21,18 +22,20 @@ __global__ void CalculatingDLA(float *calculating_field)
     int k;
     // Degree of space 3d
     // Input EDGE_FIELD with +2
-    int EDGE_FIELD = 10;
-    int END_POROSITY = 20; // Input non-porosity [0:100]
+    int EDGE_FIELD = 20;
+    int END_POROSITY = 10; // Input non-porosity [0:100]
     int NOW_POROSITY = 0; // porosity in the calculation process
     int FOR_NOW_POROSITY = (EDGE_FIELD - 2) * (EDGE_FIELD - 2) * (EDGE_FIELD - 2);
     int MAX_COORD = EDGE_FIELD - 2;
 
-    int next_x = 11;
+// int tid = blockIdx.x*blockDim.x + threadIdx.x;
+
+    int next_x = 1;
     int rand_x;
     //next_x = next_x * 1103515245 + 12345;
     //rand_x = next_x - (next_x / 3) * next_x
 
-    int immobilize_points = 1;
+    int immobilize_points = 4;
     int counter_immobilize_points = 0;
     int middle_index = EDGE_FIELD / 2 + EDGE_FIELD * (EDGE_FIELD / 2 + EDGE_FIELD * EDGE_FIELD / 2);
 
@@ -44,11 +47,12 @@ __global__ void CalculatingDLA(float *calculating_field)
     int z; // Save z
     int y; // Save y
     int x; // Save x
-
+    int counter_while = 0;
 
 //!!! ======= Start main algorithm =======
     while (NOW_POROSITY < END_POROSITY) {
-
+        counter_while += 1;
+        __syncthreads();
         // Calculating of coordinates of a new point
         if (mobile_points == 0) {
             for (k = 0; k < counter_in_for; k++) {
@@ -59,13 +63,14 @@ __global__ void CalculatingDLA(float *calculating_field)
                 if (rand_x < 0){
                     rand_x = - rand_x;
                 }
-
-                z = middle_index / (EDGE_FIELD * EDGE_FIELD) + (rand_x - 1) * immobilize_points;
+                
+                z = middle_index / (EDGE_FIELD * EDGE_FIELD) + (rand_x - 1) * immobilize_points / 4;
                 if (z < 1) {
                     z = 1;
                 } else if (z > MAX_COORD) {
                     z = MAX_COORD;
                 }
+        printf("z %d \\n", z);
 
 
                 // Y-coord new point
@@ -75,12 +80,13 @@ __global__ void CalculatingDLA(float *calculating_field)
                     rand_x = - rand_x;
                 }
 
-                y = (middle_index - z * EDGE_FIELD * EDGE_FIELD) / EDGE_FIELD + (rand_x - 1) * immobilize_points;
+                y = (middle_index - z * EDGE_FIELD * EDGE_FIELD) / EDGE_FIELD + (rand_x - 1) * immobilize_points /4;
                 if (y < 1) {
                     y = 1;
                 } else if (y > MAX_COORD) {
                     y = MAX_COORD;
                 }
+        printf("y %d \\n", y);
 
                 // X-coord new point
                 next_x = next_x * 1103515245 + 12345;
@@ -89,12 +95,13 @@ __global__ void CalculatingDLA(float *calculating_field)
                     rand_x = - rand_x;
                 }
 
-                x = middle_index - EDGE_FIELD * (y + EDGE_FIELD * z) + (rand_x - 1) * immobilize_points;
+                x = middle_index - EDGE_FIELD * (y + EDGE_FIELD * z) + (rand_x - 1) * immobilize_points / 4;
                 if (x < 1) {
                     x = 1;
                 } else if (x > MAX_COORD) {
                     x = MAX_COORD;
                 }
+        printf("x %d \\n", x);
 
                 // Index of new point
                 random_point = x + EDGE_FIELD * (y + EDGE_FIELD * z);
@@ -108,21 +115,17 @@ __global__ void CalculatingDLA(float *calculating_field)
                     mobile_points = 1;
             }
         }
+        __syncthreads();
         check_counter = 0;
-
-        // Check porosity
-        if (counter_immobilize_points > 0) {
-            immobilize_points += 1;
-            counter_immobilize_points = 0;
-            NOW_POROSITY = immobilize_points * 100 / FOR_NOW_POROSITY;
-        }
 
         if (random_point == middle_index){
         immobilize_points -= 1;
         }
+        __syncthreads();
 
         counter_immobilize_points = 0;
         calculating_field[random_point] = 2;
+        __syncthreads();
 
 // ======== Check neighbours ========
         // Y level +0; condition written for CUDA
@@ -268,17 +271,27 @@ __global__ void CalculatingDLA(float *calculating_field)
             mobile_points = 0;
             counter_immobilize_points += 1;
         }
+        __syncthreads();
 
         // Check porosity
         if (counter_immobilize_points > 0) {
             immobilize_points += 1;
             counter_immobilize_points = 0;
-            NOW_POROSITY = immobilize_points * 100 / FOR_NOW_POROSITY;
+            // Изначальная строка, потом вернуть
+            //NOW_POROSITY = immobilize_points * 100 / FOR_NOW_POROSITY;
+            
+            
+            NOW_POROSITY = immobilize_points / 4 * 100 / FOR_NOW_POROSITY / 1;
+            
+            printf("NOW_POROSITY %d % \\n", NOW_POROSITY);
+            printf("immobilize_points %d \\n", immobilize_points / 4);
         }
+        __syncthreads();
 
 // ======== Moving of points ========
         // New Z of moving point
         if (mobile_points > 0) {
+        __syncthreads();
             // X of moving point
             next_x = next_x * 1103515245 + 12345;
             rand_x = next_x - (next_x / 3) * 3;
@@ -326,6 +339,8 @@ __global__ void CalculatingDLA(float *calculating_field)
             random_point = x + EDGE_FIELD * (y + EDGE_FIELD * z);
             calculating_field[random_point] = 2;
         }
+        printf("step_while %d \\n", counter_while);
+        __syncthreads();
     }
 //!!! ======= End main algorithm =======
 }
@@ -341,25 +356,32 @@ print(middle_index)
 print(input_field[middle_index])
 
 field_gpu = gpuarray.to_gpu(input_field)
-gpu_output = gpuarray.empty((SIZE_FIELD, 1), np.float32)
+# gpu_output = gpuarray.empty((SIZE_FIELD, 1), np.float32)
 
 kernel_code = kernel_code_template
-
 mod = compiler.SourceModule(kernel_code)
-
 DLA_output = mod.get_function("CalculatingDLA")
 
 DLA_output(
     field_gpu,
-    block=(10, 10, 1))
+    grid=(1, 1, 1),
+    block=(2, 1, 1))
 
-print(f"from cuda {field_gpu}")
+# print(f"from cuda {field_gpu}")
 
 counter_render = 0
 
-arr_3d = field_gpu.reshape((EDGE_FIELD, EDGE_FIELD, EDGE_FIELD)).transpose()
-arr_3d.astype(np.int32)
-print(arr_3d)
+counter_fin_1 = 0
+counter_fin_2 = 0
+for i in field_gpu:
+    if i == 1:
+        counter_fin_1 += 1
+    if i == 2:
+        counter_fin_2 += 1
+#
+# arr_3d = field_gpu.reshape((EDGE_FIELD, EDGE_FIELD, EDGE_FIELD)).transpose()
+# arr_3d.astype(np.int32)
+# print(arr_3d)
 
 # for i in range(SIZE_FIELD):
 #     if (counter_render % EDGE_FIELD) == 0:
@@ -368,10 +390,16 @@ print(arr_3d)
 #         print(f"\n Layer_Z: {int((i + 1) / EDGE_FIELD / EDGE_FIELD)} \n")
 #     counter_render += 1
 #     if field_gpu[i] == 1:
-#         print("X")
+#         print("X", end='    ')
 #     elif field_gpu[i] == 2:
-#         print("M")
+#         print("M", end='    ')
 #     else:
-#         print("o")
+#         print("o", end='    ')
+
+print(f"\ncounter_1 {counter_fin_1}")
+print(f"counter_2 {counter_fin_2}")
+print(f"full_size {EDGE_FIELD**SPACE_VALUE}")
+print(f"FOR_NOW_POROSITY {FOR_NOW_POROSITY}")
+
 # print(input_field)
 # print(len(input_field))
