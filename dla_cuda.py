@@ -3,13 +3,51 @@ from pycuda import driver, compiler, gpuarray, tools
 import pycuda.autoinit
 
 SPACE_VALUE = 3
-EDGE_FIELD = 20
+EDGE_FIELD = 8
 END_POROSITY = 10
 FOR_NOW_POROSITY = int((EDGE_FIELD - 2) * (EDGE_FIELD - 2) * (EDGE_FIELD - 2))
 MAX_COORD = EDGE_FIELD - 2
 SIZE_FIELD = EDGE_FIELD ** SPACE_VALUE
 middle_index = int(EDGE_FIELD / 2 + EDGE_FIELD * (EDGE_FIELD / 2 + EDGE_FIELD * EDGE_FIELD / 2))
 print(f"middle_index {middle_index}")
+
+list_neighbor = [
+    # orthogonal
+    EDGE_FIELD,
+    - EDGE_FIELD,
+    1,
+    - 1,
+    # diagonal
+    EDGE_FIELD - 1,
+    EDGE_FIELD + 1,
+    - EDGE_FIELD - 1,
+    - EDGE_FIELD + 1,
+    # Y level -1 /(like +0, but with "- EDGE_FIELD * EDGE_FIELD"; condition written for CUDA//orthogonal
+    EDGE_FIELD - EDGE_FIELD * EDGE_FIELD,
+    - EDGE_FIELD - EDGE_FIELD * EDGE_FIELD,
+    1 - EDGE_FIELD * EDGE_FIELD,
+    - 1 - EDGE_FIELD * EDGE_FIELD,
+    # diagonal
+    EDGE_FIELD - 1 - EDGE_FIELD * EDGE_FIELD,
+    EDGE_FIELD + 1 - EDGE_FIELD * EDGE_FIELD,
+    - EDGE_FIELD - 1 - EDGE_FIELD * EDGE_FIELD,
+    - EDGE_FIELD + 1 - EDGE_FIELD * EDGE_FIELD,
+    # Central Y level -1
+    - EDGE_FIELD * EDGE_FIELD,
+    # Y level +1 /(like +0, but with "+ EDGE_FIELD * EDGE_FIELD"; condition written for CUDA//orthogonal
+    EDGE_FIELD + EDGE_FIELD * EDGE_FIELD,
+    - EDGE_FIELD + EDGE_FIELD * EDGE_FIELD,
+    1 + EDGE_FIELD * EDGE_FIELD,
+    - 1 + EDGE_FIELD * EDGE_FIELD,
+    # diagonal
+    EDGE_FIELD - 1 + EDGE_FIELD * EDGE_FIELD,
+    EDGE_FIELD + 1 + EDGE_FIELD * EDGE_FIELD,
+    - EDGE_FIELD - 1 + EDGE_FIELD * EDGE_FIELD,
+    - EDGE_FIELD + 1 + EDGE_FIELD * EDGE_FIELD,
+    # Central Y level +1
+    EDGE_FIELD * EDGE_FIELD]
+
+
 kernel_code_template = """ 
 
 #include <cuda_runtime.h>
@@ -17,15 +55,18 @@ kernel_code_template = """
 #include <stdlib.h>
 
 
-__global__ void CalculatingDLA(float *calculating_field)
+__global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
 {
     int k;
+    int nbr;
+    int value_check_neighbour;
     // Degree of space 3d
     // Input EDGE_FIELD with +2
-    int EDGE_FIELD = 20;
+    int EDGE_FIELD = 8;
     int END_POROSITY = 10; // Input non-porosity [0:100]
     int NOW_POROSITY = 0; // porosity in the calculation process
     int FOR_NOW_POROSITY = (EDGE_FIELD - 2) * (EDGE_FIELD - 2) * (EDGE_FIELD - 2);
+    //printf("FOR_NOW_POROSITY %d \\n", FOR_NOW_POROSITY);
     int MAX_COORD = EDGE_FIELD - 2;
 
 // int tid = blockIdx.x*blockDim.x + threadIdx.x;
@@ -35,11 +76,11 @@ __global__ void CalculatingDLA(float *calculating_field)
     //next_x = next_x * 1103515245 + 12345;
     //rand_x = next_x - (next_x / 3) * next_x
 
-    int immobilize_points = 4;
+    int immobilize_points = 1;
     int counter_immobilize_points = 0;
     int middle_index = EDGE_FIELD / 2 + EDGE_FIELD * (EDGE_FIELD / 2 + EDGE_FIELD * EDGE_FIELD / 2);
 
-
+    int size_near = 26;
     int counter_in_for = 2;
     int check_counter = 0; // For the limit of calculating new coordinates
     int random_point; // Index of new point coordinates
@@ -47,12 +88,13 @@ __global__ void CalculatingDLA(float *calculating_field)
     int z; // Save z
     int y; // Save y
     int x; // Save x
+    
     int counter_while = 0;
 
 //!!! ======= Start main algorithm =======
     while (NOW_POROSITY < END_POROSITY) {
         counter_while += 1;
-        __syncthreads();
+        
         // Calculating of coordinates of a new point
         if (mobile_points == 0) {
             for (k = 0; k < counter_in_for; k++) {
@@ -70,7 +112,7 @@ __global__ void CalculatingDLA(float *calculating_field)
                 } else if (z > MAX_COORD) {
                     z = MAX_COORD;
                 }
-        printf("z %d \\n", z);
+        //printf("z %d \\n", z);
 
 
                 // Y-coord new point
@@ -86,7 +128,7 @@ __global__ void CalculatingDLA(float *calculating_field)
                 } else if (y > MAX_COORD) {
                     y = MAX_COORD;
                 }
-        printf("y %d \\n", y);
+        //printf("y %d \\n", y);
 
                 // X-coord new point
                 next_x = next_x * 1103515245 + 12345;
@@ -101,203 +143,56 @@ __global__ void CalculatingDLA(float *calculating_field)
                 } else if (x > MAX_COORD) {
                     x = MAX_COORD;
                 }
-        printf("x %d \\n", x);
+        //printf("x %d \\n", x);
 
                 // Index of new point
                 random_point = x + EDGE_FIELD * (y + EDGE_FIELD * z);
-
-                    if ((calculating_field[random_point] == 0) || (check_counter == 120)) {
-                        break;
-                    } else {
-                        k = 0;
-                        check_counter += 1;
-                    }
-                    mobile_points = 1;
+                if ((calculating_field[random_point] == 0) || (check_counter == 120)) {
+                    break;
+                } else {
+                    k = 0;
+                    check_counter += 1;
+                }
             }
+            mobile_points = 1;
+            if (calculating_field[random_point] == 1){
+                immobilize_points -= 1;
+                printf("check if immobilize - 1 \\n");
+            }
+            calculating_field[random_point] = 2;
         }
-        __syncthreads();
         check_counter = 0;
-
-        if (random_point == middle_index){
-        immobilize_points -= 1;
-        }
-        __syncthreads();
-
         counter_immobilize_points = 0;
-        calculating_field[random_point] = 2;
-        __syncthreads();
 
 // ======== Check neighbours ========
-        // Y level +0; condition written for CUDA
-        //orthogonal
-        if (calculating_field[random_point + EDGE_FIELD] == 1) {
+        for (nbr = 0; nbr < size_near; nbr++){
+            value_check_neighbour = random_point + array_neighbor[nbr];
+            if (calculating_field[value_check_neighbour] == 1) {
             calculating_field[random_point] = 1;
             mobile_points = 0;
-            counter_immobilize_points += 1;
+            counter_immobilize_points = 1;
+            }
         }
-        if (calculating_field[random_point - EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point + 1] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point - 1] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        //diagonal
-        if (calculating_field[random_point + EDGE_FIELD - 1] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point + EDGE_FIELD + 1] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point - EDGE_FIELD - 1] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point - EDGE_FIELD + 1] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-
-        // Y level -1 /(like +0, but with - EDGE_FIELD * EDGE_FIELD; condition written for CUDA
-        //orthogonal
-        if (calculating_field[random_point + EDGE_FIELD - EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point - EDGE_FIELD - EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point + 1 - EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point - 1 - EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        //diagonal
-        if (calculating_field[random_point + EDGE_FIELD - 1 - EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point + EDGE_FIELD + 1 - EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point - EDGE_FIELD - 1 - EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point - EDGE_FIELD + 1 - EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        // Central Y level -1
-        if (calculating_field[random_point - EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-
-        // Y level +1 /(like +0, but with + EDGE_FIELD * EDGE_FIELD; condition written for CUDA
-        //orthogonal
-        if (calculating_field[random_point + EDGE_FIELD + EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point - EDGE_FIELD + EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point + 1 + EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point - 1 + EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        //diagonal
-        if (calculating_field[random_point + EDGE_FIELD - 1 + EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point + EDGE_FIELD + 1 + EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point - EDGE_FIELD - 1 + EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        if (calculating_field[random_point - EDGE_FIELD + 1 + EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        // Central Y level +1
-        if (calculating_field[random_point + EDGE_FIELD * EDGE_FIELD] == 1) {
-            calculating_field[random_point] = 1;
-            mobile_points = 0;
-            counter_immobilize_points += 1;
-        }
-        __syncthreads();
 
         // Check porosity
-        if (counter_immobilize_points > 0) {
+        if (counter_immobilize_points ==1) {
             immobilize_points += 1;
             counter_immobilize_points = 0;
             // Изначальная строка, потом вернуть
-            //NOW_POROSITY = immobilize_points * 100 / FOR_NOW_POROSITY;
+            NOW_POROSITY = immobilize_points * 100 / FOR_NOW_POROSITY;
             
             
-            NOW_POROSITY = immobilize_points / 4 * 100 / FOR_NOW_POROSITY / 1;
+            //NOW_POROSITY = immobilize_points / 4 * 100 / FOR_NOW_POROSITY / 1;
             
             printf("NOW_POROSITY %d % \\n", NOW_POROSITY);
-            printf("immobilize_points %d \\n", immobilize_points / 4);
+            printf("immobilize_points %d \\n", immobilize_points);
         }
-        __syncthreads();
 
 // ======== Moving of points ========
         // New Z of moving point
         if (mobile_points > 0) {
-        __syncthreads();
-            // X of moving point
             next_x = next_x * 1103515245 + 12345;
             rand_x = next_x - (next_x / 3) * 3;
-            if (rand_x < 0){
-                rand_x = - rand_x;
-            }
 
             z = z + rand_x - 1;
             if (z < 1) {
@@ -339,13 +234,31 @@ __global__ void CalculatingDLA(float *calculating_field)
             random_point = x + EDGE_FIELD * (y + EDGE_FIELD * z);
             calculating_field[random_point] = 2;
         }
-        printf("step_while %d \\n", counter_while);
-        __syncthreads();
+        //printf("step_while %d \\n", counter_while);
     }
 //!!! ======= End main algorithm =======
+    int counter_render = 0;
+    int SIZE_FIELD = EDGE_FIELD * EDGE_FIELD * EDGE_FIELD;
+    for (int i = 0;  i < SIZE_FIELD; i++){
+        if (counter_render % EDGE_FIELD == 0){
+            printf("\\n");
+        }
+        if (counter_render % (EDGE_FIELD * EDGE_FIELD) == 0){
+            printf("\\nLayer_Z: %d \\n", (i + 1) / EDGE_FIELD / EDGE_FIELD);
+        }
+        counter_render += 1;
+        if (calculating_field[i]== 1){
+            printf("X ");
+        } else if (calculating_field[i] == 2){
+            printf("M ");
+        } else {
+            printf("o ");
+        }
+    }
 }
 """
 
+array_neighbor = np.array(list_neighbor).astype(np.float32)
 input_field = np.zeros(SIZE_FIELD).astype(np.float32)
 input_field[middle_index] = float(1)
 
@@ -356,6 +269,7 @@ print(middle_index)
 print(input_field[middle_index])
 
 field_gpu = gpuarray.to_gpu(input_field)
+neighbours = gpuarray.to_gpu(array_neighbor)
 # gpu_output = gpuarray.empty((SIZE_FIELD, 1), np.float32)
 
 kernel_code = kernel_code_template
@@ -364,8 +278,9 @@ DLA_output = mod.get_function("CalculatingDLA")
 
 DLA_output(
     field_gpu,
+    neighbours,
     grid=(1, 1, 1),
-    block=(2, 1, 1))
+    block=(1, 1, 1))
 
 # print(f"from cuda {field_gpu}")
 
@@ -398,7 +313,7 @@ for i in field_gpu:
 
 print(f"\ncounter_1 {counter_fin_1}")
 print(f"counter_2 {counter_fin_2}")
-print(f"full_size {EDGE_FIELD**SPACE_VALUE}")
+print(f"full_size {(EDGE_FIELD - 2) ** SPACE_VALUE}")
 print(f"FOR_NOW_POROSITY {FOR_NOW_POROSITY}")
 
 # print(input_field)
