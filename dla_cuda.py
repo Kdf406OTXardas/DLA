@@ -93,7 +93,8 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
 
 //!!! ======= Start main algorithm =======
     while (NOW_POROSITY < END_POROSITY) {
-        counter_while += 1;
+   
+        //printf("Calculating of coordinates of a new point\\n");
         
         // Calculating of coordinates of a new point
         if (mobile_points == 0) {
@@ -106,7 +107,7 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
                     rand_x = - rand_x;
                 }
                 
-                z = middle_index / (EDGE_FIELD * EDGE_FIELD) + (rand_x - 1) * immobilize_points / 4;
+                z = middle_index / (EDGE_FIELD * EDGE_FIELD) + (rand_x - 1) * immobilize_points;
                 if (z < 1) {
                     z = 1;
                 } else if (z > MAX_COORD) {
@@ -122,7 +123,7 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
                     rand_x = - rand_x;
                 }
 
-                y = (middle_index - z * EDGE_FIELD * EDGE_FIELD) / EDGE_FIELD + (rand_x - 1) * immobilize_points /4;
+                y = (middle_index - z * EDGE_FIELD * EDGE_FIELD) / EDGE_FIELD + (rand_x - 1) * immobilize_points;
                 if (y < 1) {
                     y = 1;
                 } else if (y > MAX_COORD) {
@@ -137,7 +138,7 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
                     rand_x = - rand_x;
                 }
 
-                x = middle_index - EDGE_FIELD * (y + EDGE_FIELD * z) + (rand_x - 1) * immobilize_points / 4;
+                x = middle_index - EDGE_FIELD * (y + EDGE_FIELD * z) + (rand_x - 1) * immobilize_points;
                 if (x < 1) {
                     x = 1;
                 } else if (x > MAX_COORD) {
@@ -154,40 +155,40 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
                     check_counter += 1;
                 }
             }
+            //printf("random_point %d\\n", random_point);
             mobile_points = 1;
             if (calculating_field[random_point] == 1){
                 immobilize_points -= 1;
-                printf("check if immobilize - 1 \\n");
+                //printf("check if immobilize - 1 \\n");
             }
             calculating_field[random_point] = 2;
         }
         check_counter = 0;
         counter_immobilize_points = 0;
+        
 
+        //printf("Check neighbours\\n");
 // ======== Check neighbours ========
         for (nbr = 0; nbr < size_near; nbr++){
             value_check_neighbour = random_point + array_neighbor[nbr];
             if (calculating_field[value_check_neighbour] == 1) {
             calculating_field[random_point] = 1;
             mobile_points = 0;
-            counter_immobilize_points = 1;
+            counter_immobilize_points += 1;
             }
         }
 
         // Check porosity
-        if (counter_immobilize_points ==1) {
+        if (counter_immobilize_points > 0) {
             immobilize_points += 1;
             counter_immobilize_points = 0;
-            // Изначальная строка, потом вернуть
             NOW_POROSITY = immobilize_points * 100 / FOR_NOW_POROSITY;
-            
-            
-            //NOW_POROSITY = immobilize_points / 4 * 100 / FOR_NOW_POROSITY / 1;
-            
+                        
             printf("NOW_POROSITY %d % \\n", NOW_POROSITY);
             printf("immobilize_points %d \\n", immobilize_points);
         }
 
+        //printf("Moving of points\\n");
 // ======== Moving of points ========
         // New Z of moving point
         if (mobile_points > 0) {
@@ -237,24 +238,6 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
         //printf("step_while %d \\n", counter_while);
     }
 //!!! ======= End main algorithm =======
-    int counter_render = 0;
-    int SIZE_FIELD = EDGE_FIELD * EDGE_FIELD * EDGE_FIELD;
-    for (int i = 0;  i < SIZE_FIELD; i++){
-        if (counter_render % EDGE_FIELD == 0){
-            printf("\\n");
-        }
-        if (counter_render % (EDGE_FIELD * EDGE_FIELD) == 0){
-            printf("\\nLayer_Z: %d \\n", (i + 1) / EDGE_FIELD / EDGE_FIELD);
-        }
-        counter_render += 1;
-        if (calculating_field[i]== 1){
-            printf("X ");
-        } else if (calculating_field[i] == 2){
-            printf("M ");
-        } else {
-            printf("o ");
-        }
-    }
 }
 """
 
