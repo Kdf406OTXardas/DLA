@@ -1,6 +1,7 @@
 import numpy as np
 from pycuda import driver, compiler, gpuarray, tools
 import pycuda.autoinit
+import time
 
 SPACE_VALUE = 3
 EDGE_FIELD = 8
@@ -47,12 +48,14 @@ list_neighbor = [
     # Central Y level +1
     EDGE_FIELD * EDGE_FIELD]
 
-
+st_time = time.time()
 kernel_code_template = """ 
 
 #include <cuda_runtime.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+
 
 
 __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
@@ -71,7 +74,7 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
 
 // int tid = blockIdx.x*blockDim.x + threadIdx.x;
 
-    int next_x = 1;
+    int next_x = clock();
     int rand_x;
     //next_x = next_x * 1103515245 + 12345;
     //rand_x = next_x - (next_x / 3) * next_x
@@ -89,8 +92,10 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
     int y; // Save y
     int x; // Save x
     
-    int counter_while = 0;
 
+    unsigned int start_time;
+    unsigned int end_time;
+    start_time = clock() / CLOCKS_PER_SEC;
 //!!! ======= Start main algorithm =======
     while (NOW_POROSITY < END_POROSITY) {
    
@@ -237,9 +242,13 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
         }
         //printf("step_while %d \\n", counter_while);
     }
+    end_time = clock() / CLOCKS_PER_SEC;
 //!!! ======= End main algorithm =======
+    printf("end_time - start_time %d\\n", (end_time - start_time));
 }
 """
+
+en_time = time.time()
 
 array_neighbor = np.array(list_neighbor).astype(np.float32)
 input_field = np.zeros(SIZE_FIELD).astype(np.float32)
@@ -264,7 +273,7 @@ DLA_output(
     neighbours,
     grid=(1, 1, 1),
     block=(1, 1, 1))
-
+print(f"en_time - st_time {en_time - st_time}")
 # print(f"from cuda {field_gpu}")
 
 counter_render = 0
