@@ -1,10 +1,11 @@
 import numpy as np
+# import pandas as pd
 from pycuda import driver, compiler, gpuarray, tools
 import pycuda.autoinit
 import time
 
 SPACE_VALUE = 3
-EDGE_FIELD = 8
+EDGE_FIELD = 20
 END_POROSITY = 10
 FOR_NOW_POROSITY = int((EDGE_FIELD - 2) * (EDGE_FIELD - 2) * (EDGE_FIELD - 2))
 MAX_COORD = EDGE_FIELD - 2
@@ -48,7 +49,6 @@ list_neighbor = [
     # Central Y level +1
     EDGE_FIELD * EDGE_FIELD]
 
-st_time = time.time()
 kernel_code_template = """ 
 
 #include <cuda_runtime.h>
@@ -58,14 +58,15 @@ kernel_code_template = """
 
 
 
-__global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
+__global__ void CalculatingDLA(float *calculating_field)
 {
+//    int i = threadIdx.x;
     int k;
-    int nbr;
+    int nbr = threadIdx.x;
     int value_check_neighbour;
     // Degree of space 3d
     // Input EDGE_FIELD with +2
-    int EDGE_FIELD = 8;
+    int EDGE_FIELD = 20;
     int END_POROSITY = 10; // Input non-porosity [0:100]
     int NOW_POROSITY = 0; // porosity in the calculation process
     int FOR_NOW_POROSITY = (EDGE_FIELD - 2) * (EDGE_FIELD - 2) * (EDGE_FIELD - 2);
@@ -74,7 +75,7 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
 
 // int tid = blockIdx.x*blockDim.x + threadIdx.x;
 
-    int next_x = clock();
+    int next_x = clock() / 1000;
     int rand_x;
     //next_x = next_x * 1103515245 + 12345;
     //rand_x = next_x - (next_x / 3) * next_x
@@ -83,7 +84,45 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
     int counter_immobilize_points = 0;
     int middle_index = EDGE_FIELD / 2 + EDGE_FIELD * (EDGE_FIELD / 2 + EDGE_FIELD * EDGE_FIELD / 2);
 
+
     int size_near = 26;
+    int array_neighbor [26];
+    // Y level +0; condition written for CUDA
+    //orthogonal
+    array_neighbor[0] = EDGE_FIELD;
+    array_neighbor[1] = - EDGE_FIELD;
+    array_neighbor[2] = 1;
+    array_neighbor[3] = - 1;
+    //diagonal
+    array_neighbor[4] = EDGE_FIELD - 1;
+    array_neighbor[5] = EDGE_FIELD + 1;
+    array_neighbor[6] = - EDGE_FIELD - 1;
+    array_neighbor[7] = - EDGE_FIELD + 1;
+    // Y level -1 /(like +0, but with "- EDGE_FIELD * EDGE_FIELD"; condition written for CUDA//orthogonal
+    array_neighbor[8] = EDGE_FIELD - EDGE_FIELD * EDGE_FIELD;
+    array_neighbor[9] = - EDGE_FIELD - EDGE_FIELD * EDGE_FIELD;
+    array_neighbor[10] = 1 - EDGE_FIELD * EDGE_FIELD;
+    array_neighbor[11] = - 1 - EDGE_FIELD * EDGE_FIELD;
+    //diagonal
+    array_neighbor[12] = EDGE_FIELD - 1 - EDGE_FIELD * EDGE_FIELD;
+    array_neighbor[13] = EDGE_FIELD + 1 - EDGE_FIELD * EDGE_FIELD;
+    array_neighbor[14] = - EDGE_FIELD - 1 - EDGE_FIELD * EDGE_FIELD;
+    array_neighbor[15] = - EDGE_FIELD + 1 - EDGE_FIELD * EDGE_FIELD;
+    // Central Y level -1
+    array_neighbor[16] = - EDGE_FIELD * EDGE_FIELD;
+    // Y level +1 /(like +0, but with "+ EDGE_FIELD * EDGE_FIELD"; condition written for CUDA//orthogonal
+    array_neighbor[17] = EDGE_FIELD + EDGE_FIELD * EDGE_FIELD;
+    array_neighbor[18] = - EDGE_FIELD + EDGE_FIELD * EDGE_FIELD;
+    array_neighbor[19] = 1 + EDGE_FIELD * EDGE_FIELD;
+    array_neighbor[20] = - 1 + EDGE_FIELD * EDGE_FIELD;
+    //diagonal
+    array_neighbor[21] = EDGE_FIELD - 1 + EDGE_FIELD * EDGE_FIELD;
+    array_neighbor[22] = EDGE_FIELD + 1 + EDGE_FIELD * EDGE_FIELD;
+    array_neighbor[23] = - EDGE_FIELD - 1 + EDGE_FIELD * EDGE_FIELD;
+    array_neighbor[24] = - EDGE_FIELD + 1 + EDGE_FIELD * EDGE_FIELD;
+    // Central Y level +1
+    array_neighbor[25] = EDGE_FIELD * EDGE_FIELD;
+    
     int counter_in_for = 2;
     int check_counter = 0; // For the limit of calculating new coordinates
     int random_point; // Index of new point coordinates
@@ -93,9 +132,9 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
     int x; // Save x
     
 
-    unsigned int start_time;
-    unsigned int end_time;
-    start_time = clock() / CLOCKS_PER_SEC;
+//    unsigned int start_time;
+//    unsigned int end_time;
+//    start_time = clock() / CLOCKS_PER_SEC;
 //!!! ======= Start main algorithm =======
     while (NOW_POROSITY < END_POROSITY) {
    
@@ -128,7 +167,7 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
                     rand_x = - rand_x;
                 }
 
-                y = (middle_index - z * EDGE_FIELD * EDGE_FIELD) / EDGE_FIELD + (rand_x - 1) * immobilize_points;
+                y = middle_index / EDGE_FIELD / EDGE_FIELD + (rand_x - 1) * immobilize_points;
                 if (y < 1) {
                     y = 1;
                 } else if (y > MAX_COORD) {
@@ -143,7 +182,7 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
                     rand_x = - rand_x;
                 }
 
-                x = middle_index - EDGE_FIELD * (y + EDGE_FIELD * z) + (rand_x - 1) * immobilize_points;
+                x = middle_index - middle_index / EDGE_FIELD * EDGE_FIELD + (rand_x - 1) * immobilize_points;
                 if (x < 1) {
                     x = 1;
                 } else if (x > MAX_COORD) {
@@ -154,7 +193,7 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
                 // Index of new point
                 random_point = x + EDGE_FIELD * (y + EDGE_FIELD * z);
                 if ((calculating_field[random_point] == 0) || (check_counter == 120)) {
-                    break;
+                    middle_index += 1;
                 } else {
                     k = 0;
                     check_counter += 1;
@@ -174,14 +213,25 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
 
         //printf("Check neighbours\\n");
 // ======== Check neighbours ========
+// -------- Append new flows START --------
+        //if (nbr < 27){
+        //    value_check_neighbour = random_point + array_neighbor[nbr - 1];
+        //    if (calculating_field[value_check_neighbour] == 1) {
+        //    calculating_field[random_point] = 1;
+        //    mobile_points = 0;
+        //    counter_immobilize_points += 1;
+        //    }
+        //}
+        //__syncthreads();
         for (nbr = 0; nbr < size_near; nbr++){
             value_check_neighbour = random_point + array_neighbor[nbr];
             if (calculating_field[value_check_neighbour] == 1) {
             calculating_field[random_point] = 1;
             mobile_points = 0;
             counter_immobilize_points += 1;
-            }
+           }
         }
+// -------- Append new flows END --------
 
         // Check porosity
         if (counter_immobilize_points > 0) {
@@ -242,15 +292,14 @@ __global__ void CalculatingDLA(float *calculating_field, float *array_neighbor)
         }
         //printf("step_while %d \\n", counter_while);
     }
-    end_time = clock() / CLOCKS_PER_SEC;
+//    end_time = clock() / CLOCKS_PER_SEC;
 //!!! ======= End main algorithm =======
-    printf("end_time - start_time %d\\n", (end_time - start_time));
+//    printf("end_time - start_time %d\\n", (end_time - start_time));
 }
 """
 
-en_time = time.time()
 
-array_neighbor = np.array(list_neighbor).astype(np.float32)
+# array_neighbor = np.array(list_neighbor).astype(np.float32)
 input_field = np.zeros(SIZE_FIELD).astype(np.float32)
 input_field[middle_index] = float(1)
 
@@ -261,18 +310,22 @@ print(middle_index)
 print(input_field[middle_index])
 
 field_gpu = gpuarray.to_gpu(input_field)
-neighbours = gpuarray.to_gpu(array_neighbor)
+# neighbours = gpuarray.to_gpu(array_neighbor)
 # gpu_output = gpuarray.empty((SIZE_FIELD, 1), np.float32)
 
 kernel_code = kernel_code_template
 mod = compiler.SourceModule(kernel_code)
 DLA_output = mod.get_function("CalculatingDLA")
 
+st_time = time.time()
+
 DLA_output(
     field_gpu,
-    neighbours,
+    # neighbours,
     grid=(1, 1, 1),
     block=(1, 1, 1))
+
+en_time = time.time()
 print(f"en_time - st_time {en_time - st_time}")
 # print(f"from cuda {field_gpu}")
 
