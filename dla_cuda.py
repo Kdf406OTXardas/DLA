@@ -1,11 +1,11 @@
 import numpy as np
-# import pandas as pd
+import pandas as pd
 from pycuda import driver, compiler, gpuarray, tools
 import pycuda.autoinit
 import time
 
 SPACE_VALUE = 3
-EDGE_FIELD = 20
+EDGE_FIELD = 60
 END_POROSITY = 10
 FOR_NOW_POROSITY = int((EDGE_FIELD - 2) * (EDGE_FIELD - 2) * (EDGE_FIELD - 2))
 MAX_COORD = EDGE_FIELD - 2
@@ -66,7 +66,7 @@ __global__ void CalculatingDLA(float *calculating_field)
     int value_check_neighbour;
     // Degree of space 3d
     // Input EDGE_FIELD with +2
-    int EDGE_FIELD = 20;
+    int EDGE_FIELD = 60;
     int END_POROSITY = 10; // Input non-porosity [0:100]
     int NOW_POROSITY = 0; // porosity in the calculation process
     int FOR_NOW_POROSITY = (EDGE_FIELD - 2) * (EDGE_FIELD - 2) * (EDGE_FIELD - 2);
@@ -249,6 +249,9 @@ __global__ void CalculatingDLA(float *calculating_field)
         if (mobile_points > 0) {
             next_x = next_x * 1103515245 + 12345;
             rand_x = next_x - (next_x / 3) * 3;
+            if (rand_x < 0){
+                rand_x = - rand_x;
+            }
 
             z = z + rand_x - 1;
             if (z < 1) {
@@ -290,6 +293,10 @@ __global__ void CalculatingDLA(float *calculating_field)
             random_point = x + EDGE_FIELD * (y + EDGE_FIELD * z);
             calculating_field[random_point] = 2;
         }
+        printf("x %d ", x);
+        printf("y %d ", y);
+        printf("z %d \\n", z);
+        printf("immobilize_points %d \\n", immobilize_points);
         //printf("step_while %d \\n", counter_while);
     }
 //    end_time = clock() / CLOCKS_PER_SEC;
@@ -297,7 +304,6 @@ __global__ void CalculatingDLA(float *calculating_field)
 //    printf("end_time - start_time %d\\n", (end_time - start_time));
 }
 """
-
 
 # array_neighbor = np.array(list_neighbor).astype(np.float32)
 input_field = np.zeros(SIZE_FIELD).astype(np.float32)
@@ -361,5 +367,11 @@ print(f"counter_2 {counter_fin_2}")
 print(f"full_size {(EDGE_FIELD - 2) ** SPACE_VALUE}")
 print(f"FOR_NOW_POROSITY {FOR_NOW_POROSITY}")
 
-# print(input_field)
-# print(len(input_field))
+df_export = np.array(field_gpu)
+
+df = pd.DataFrame(df_export, columns=['property'])
+df['z'] = (df.index / (SIZE_FIELD * SIZE_FIELD)).astype(int)
+df['y'] = (df.index / SIZE_FIELD).astype(int) - ((df.index / SIZE_FIELD / SIZE_FIELD) * SIZE_FIELD).astype(int)
+df['x'] = (df.index - SIZE_FIELD * (df.index / SIZE_FIELD).astype(int)).astype(int)
+
+df.to_csv(f"/home/natkachov/datasets/export_from_dla_cuda/dla_cuda_{SIZE_FIELD}.csv", index=False)
