@@ -5,7 +5,7 @@ import pycuda.autoinit
 import time
 
 SPACE_VALUE = 3
-EDGE_FIELD = 60
+EDGE_FIELD = 20
 END_POROSITY = 10
 FOR_NOW_POROSITY = int((EDGE_FIELD - 2) * (EDGE_FIELD - 2) * (EDGE_FIELD - 2))
 MAX_COORD = EDGE_FIELD - 2
@@ -66,12 +66,13 @@ __global__ void CalculatingDLA(float *calculating_field)
     int value_check_neighbour;
     // Degree of space 3d
     // Input EDGE_FIELD with +2
-    int EDGE_FIELD = 60;
+    int EDGE_FIELD = 20;
     int END_POROSITY = 10; // Input non-porosity [0:100]
     int NOW_POROSITY = 0; // porosity in the calculation process
     int FOR_NOW_POROSITY = (EDGE_FIELD - 2) * (EDGE_FIELD - 2) * (EDGE_FIELD - 2);
     //printf("FOR_NOW_POROSITY %d \\n", FOR_NOW_POROSITY);
     int MAX_COORD = EDGE_FIELD - 2;
+    int SIZE_FIELD = EDGE_FIELD * EDGE_FIELD * EDGE_FIELD;
 
 // int tid = blockIdx.x*blockDim.x + threadIdx.x;
 
@@ -153,9 +154,9 @@ __global__ void CalculatingDLA(float *calculating_field)
                 
                 z = middle_index / (EDGE_FIELD * EDGE_FIELD) + (rand_x - 1) * immobilize_points;
                 if (z < 1) {
-                    z = 1;
-                } else if (z > MAX_COORD) {
                     z = MAX_COORD;
+                } else if (z > MAX_COORD) {
+                    z = 1;
                 }
         //printf("z %d \\n", z);
 
@@ -169,9 +170,9 @@ __global__ void CalculatingDLA(float *calculating_field)
 
                 y = middle_index / EDGE_FIELD / EDGE_FIELD + (rand_x - 1) * immobilize_points;
                 if (y < 1) {
-                    y = 1;
-                } else if (y > MAX_COORD) {
                     y = MAX_COORD;
+                } else if (y > MAX_COORD) {
+                    y = 1;
                 }
         //printf("y %d \\n", y);
 
@@ -184,15 +185,18 @@ __global__ void CalculatingDLA(float *calculating_field)
 
                 x = middle_index - middle_index / EDGE_FIELD * EDGE_FIELD + (rand_x - 1) * immobilize_points;
                 if (x < 1) {
-                    x = 1;
-                } else if (x > MAX_COORD) {
                     x = MAX_COORD;
+                } else if (x > MAX_COORD) {
+                    x = 1;
                 }
         //printf("x %d \\n", x);
 
                 // Index of new point
                 random_point = x + EDGE_FIELD * (y + EDGE_FIELD * z);
                 if ((calculating_field[random_point] == 0) || (check_counter == 120)) {
+                    if (middle_index > SIZE_FIELD){
+                    middle_index = 0;
+                    }
                     middle_index += 1;
                 } else {
                     k = 0;
@@ -370,8 +374,8 @@ print(f"FOR_NOW_POROSITY {FOR_NOW_POROSITY}")
 df_export = np.array(field_gpu)
 
 df = pd.DataFrame(df_export, columns=['property'])
-df['z'] = (df.index / (SIZE_FIELD * SIZE_FIELD)).astype(int)
-df['y'] = (df.index / SIZE_FIELD).astype(int) - ((df.index / SIZE_FIELD / SIZE_FIELD) * SIZE_FIELD).astype(int)
-df['x'] = (df.index - SIZE_FIELD * (df.index / SIZE_FIELD).astype(int)).astype(int)
-
-df.to_csv(f"/home/natkachov/datasets/export_from_dla_cuda/dla_cuda_{SIZE_FIELD}.csv", index=False)
+df['z'] = (df.index / (EDGE_FIELD * EDGE_FIELD)).astype(int)
+df['y'] = (df.index / EDGE_FIELD).astype(int) - ((df.index / EDGE_FIELD / EDGE_FIELD) * EDGE_FIELD).astype(int)
+df['x'] = (df.index - EDGE_FIELD * (df.index / EDGE_FIELD).astype(int)).astype(int)
+print(df)
+df.to_csv(f"/home/natkachov/datasets/export_from_dla_cuda/dla_cuda_{EDGE_FIELD}.csv", index=False)
