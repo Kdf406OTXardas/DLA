@@ -5,8 +5,8 @@ import pycuda.autoinit
 import time
 
 SPACE_VALUE = 3
-EDGE_FIELD = 20
-END_POROSITY = 10
+EDGE_FIELD = 60
+END_POROSITY = 3
 FOR_NOW_POROSITY = int((EDGE_FIELD - 2) * (EDGE_FIELD - 2) * (EDGE_FIELD - 2))
 MAX_COORD = EDGE_FIELD - 2
 SIZE_FIELD = EDGE_FIELD ** SPACE_VALUE
@@ -63,11 +63,10 @@ __global__ void CalculatingDLA(float *calculating_field)
 //    int i = threadIdx.x;
     int k;
     int nbr = threadIdx.x;
-    int value_check_neighbour;
     // Degree of space 3d
     // Input EDGE_FIELD with +2
-    int EDGE_FIELD = 20;
-    int END_POROSITY = 10; // Input non-porosity [0:100]
+    int EDGE_FIELD = 60;
+    int END_POROSITY = 3; // Input non-porosity [0:100]
     int NOW_POROSITY = 0; // porosity in the calculation process
     int FOR_NOW_POROSITY = (EDGE_FIELD - 2) * (EDGE_FIELD - 2) * (EDGE_FIELD - 2);
     //printf("FOR_NOW_POROSITY %d \\n", FOR_NOW_POROSITY);
@@ -198,6 +197,7 @@ __global__ void CalculatingDLA(float *calculating_field)
                     middle_index = 0;
                     }
                     middle_index += 1;
+                    break;
                 } else {
                     k = 0;
                     check_counter += 1;
@@ -228,13 +228,14 @@ __global__ void CalculatingDLA(float *calculating_field)
         //}
         //__syncthreads();
         for (nbr = 0; nbr < size_near; nbr++){
-            value_check_neighbour = random_point + array_neighbor[nbr];
-            if (calculating_field[value_check_neighbour] == 1) {
+            if (calculating_field[random_point + array_neighbor[nbr]] == 1) {
             calculating_field[random_point] = 1;
             mobile_points = 0;
             counter_immobilize_points += 1;
+            printf("nbr %d", nbr);
            }
         }
+        __syncthreads();
 // -------- Append new flows END --------
 
         // Check porosity
@@ -297,10 +298,10 @@ __global__ void CalculatingDLA(float *calculating_field)
             random_point = x + EDGE_FIELD * (y + EDGE_FIELD * z);
             calculating_field[random_point] = 2;
         }
-        printf("x %d ", x);
-        printf("y %d ", y);
-        printf("z %d \\n", z);
-        printf("immobilize_points %d \\n", immobilize_points);
+        //printf("x %d ", x);
+        //printf("y %d ", y);
+        //printf("z %d \\n", z);
+        //printf("immobilize_points %d \\n", immobilize_points);
         //printf("step_while %d \\n", counter_while);
     }
 //    end_time = clock() / CLOCKS_PER_SEC;
